@@ -20,16 +20,16 @@ caffe.set_mode_gpu()
 
 #helper show filter outputs
 def show_filters(net):
-	net.forward()
-	plt.figure()
-	filt_min, filt_max = net.blobs['conv'].data.min(), net.blobs['conv'].data.max()
-	for i in range(3): # three feature map.
-		plt.subplot(1,4,i+2)
-		plt.title("filter #{} output".format(i))
-		plt.imshow(net.blobs['conv'].data[0,i], vmin=filt_min, vmax=filt_max)
-		plt.tight_layout()
-		plt.axis('off')
-		plt.show()
+    net.forward()
+    plt.figure()
+    filt_min, filt_max = net.blobs['conv'].data.min(), net.blobs['conv'].data.max()
+    for i in range(3): # three feature map.
+	plt.subplot(1,4,i+2)
+	plt.title("filter #{} output".format(i))
+	plt.imshow(net.blobs['conv'].data[0,i], vmin=filt_min, vmax=filt_max)
+	plt.tight_layout()
+	plt.axis('off')
+	plt.show()
 
 
 def generateBoundingBox(featureMap, scale):
@@ -38,8 +38,8 @@ def generateBoundingBox(featureMap, scale):
     cellSize = 227
     #227 x 227 cell, stride=32
     for (x,y), prob in np.ndenumerate(featureMap):
-       if(prob >= 0.85):
-            boundingBox.append([float(stride * y)/ scale, float(x * stride)/scale, float(stride * y + cellSize - 1)/scale, float(stride * x + cellSize - 1)/scale, prob])
+	if(prob >= 0.85):
+	    boundingBox.append([float(stride * y)/ scale, float(x * stride)/scale, float(stride * y + cellSize - 1)/scale, float(stride * x + cellSize - 1)/scale, prob])
     #sort by prob, from max to min.
     #boxes = np.array(boundingBox)
     return boundingBox
@@ -191,106 +191,106 @@ def convert_full_conv():
     params_full_conv = ['fc6-conv', 'fc7-conv', 'fc8-conv']
     conv_params = {pr: (net_full_conv.params[pr][0].data, net_full_conv.params[pr][1].data) for pr in params_full_conv}
     for pr, pr_conv in zip(params, params_full_conv):
-       conv_params[pr_conv][0].flat = fc_params[pr][0].flat  # flat unrolls the arrays
-       conv_params[pr_conv][1][...] = fc_params[pr][1]
+	conv_params[pr_conv][0].flat = fc_params[pr][0].flat  # flat unrolls the arrays
+	conv_params[pr_conv][1][...] = fc_params[pr][1]
     net_full_conv.save('face_full_conv.caffemodel')
 
 def face_detection(imgList):
-  img_count = 0
-  for imgFile in open(imgList).readlines():
-    scales = []
-    factor = 0.793700526
-    img = Image.open(imgFile.strip())
-    min = 0
-    max = 0
-    if(img.size[0] > img.size[1]):
-        min = img.size[1]
-	max = img.size[0]
-    else:
-        min = img.size[0]
-	max = img.size[1]
-    delim = 2500/max
-    if(delim == 1):
-	scales.append(1)
-    elif(delim > 1):
-        scales.append(delim)
+    img_count = 0
+    for imgFile in open(imgList).readlines():
+	scales = []
+	factor = 0.793700526
+	img = Image.open(imgFile.strip())
+	min = 0
+	max = 0
+	if(img.size[0] > img.size[1]):
+	    min = img.size[1]
+	    max = img.size[0]
+	else:
+	    min = img.size[0]
+	    max = img.size[1]
+	delim = 2500/max
+	if(delim == 1):
+	    scales.append(1)
+	elif(delim > 1):
+	    scales.append(delim)
+	
+	#scales.append(5)
+	min = min * factor
+	factor_count = 1
+	while(min >= 227):
+	    scales.append(pow(factor,  factor_count))
+	    min = min * factor
+	    factor_count += 1
+	total_boxes = []
+	print ('size:', img.size[0], img.size[1])
+	print (scales)
+	for scale in scales:
+	    #resize image
+	    scale_img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)))
+	    scale_img.save("tmp.jpg")
+	    #print 'size:', scale_img.size[0], scale_img.size[1]
+	    #modify the full_conv prototxt.
+	    prototxt = open('face_full_conv.prototxt', 'r')
+	    new_line = ""
+	    for i, line in enumerate(prototxt):
+		if i== 5:
+		    new_line += "input_dim: " + str(scale_img.size[1]) + "\n"
+		elif i== 6:
+		    new_line += "input_dim: " + str(scale_img.size[0]) + "\n"
+		else:
+		    new_line += line
+	    output = open('face_full_conv2.prototxt', 'w')
+	    output.write(new_line)
+	    output.close()
+	    prototxt.close()
+	    net_full_conv = caffe.Net('face_full_conv2.prototxt',
+		                  'face_full_conv.caffemodel',
+		                  caffe.TEST)
+	    # load input and configure preprocessing
+	    im = caffe.io.load_image("tmp.jpg")
+	    transformer = caffe.io.Transformer({'data': net_full_conv.blobs['data'].data.shape})
+	    transformer.set_mean('data', np.load(caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy').mean(1).mean(1))
+	    transformer.set_transpose('data', (2,0,1))
+	    transformer.set_channel_swap('data', (2,1,0))
+	    transformer.set_raw_scale('data', 255.0)
     
-    #scales.append(5)
-    min = min * factor
-    factor_count = 1
-    while(min >= 227):
-        scales.append(pow(factor,  factor_count))
-        min = min * factor
-        factor_count += 1
-    total_boxes = []
-    print 'size:', img.size[0], img.size[1]
-    print scales
-    for scale in scales:
-        #resize image
-        scale_img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)))
-        scale_img.save("tmp.jpg")
-#	print 'size:', scale_img.size[0], scale_img.size[1]
-        #modify the full_conv prototxt.
-        prototxt = open('face_full_conv.prototxt', 'r')
-        new_line = ""
-        for i, line in enumerate(prototxt):
-            if i== 5:
-                new_line += "input_dim: " + str(scale_img.size[1]) + "\n"
-            elif i== 6:
-                new_line += "input_dim: " + str(scale_img.size[0]) + "\n"
-            else:
-                new_line += line
-        output = open('face_full_conv2.prototxt', 'w')
-        output.write(new_line)
-        output.close()
-        prototxt.close()
-        net_full_conv = caffe.Net('face_full_conv2.prototxt',
-                              'face_full_conv.caffemodel',
-                              caffe.TEST)
-        # load input and configure preprocessing
-        im = caffe.io.load_image("tmp.jpg")
-        transformer = caffe.io.Transformer({'data': net_full_conv.blobs['data'].data.shape})
-        transformer.set_mean('data', np.load(caffe_root + 'python/caffe/imagenet/ilsvrc_2012_mean.npy').mean(1).mean(1))
-        transformer.set_transpose('data', (2,0,1))
-        transformer.set_channel_swap('data', (2,1,0))
-        transformer.set_raw_scale('data', 255.0)
-
-        # make classification map by forward and print prediction indices at each location
-        out = net_full_conv.forward_all(data=np.asarray([transformer.preprocess('data', im)]))
-        #print out['prob'][0].argmax(axis=0)
-        boxes = generateBoundingBox(out['prob'][0,1], scale)
-        #plt.subplot(1, 2, 1)
-        #plt.imshow(transformer.deprocess('data', net_full_conv.blobs['data'].data[0]))
-        #plt.subplot(1, 2, 2)
-        #plt.imshow(out['prob'][0,1])
-        #plt.show()
-        #print boxes
-        if(boxes):
-            total_boxes.extend(boxes)
-
-            # boxes_nms = np.array(total_boxes)
-            # true_boxes = nms(boxes_nms, overlapThresh=0.3)
-            # #display the nmx bounding box in  image.
-            # draw = ImageDraw.Draw(scale_img)
-            # for box in true_boxes:
-            #     draw.rectangle((box[0], box[1], box[2], box[3]) )
-            # scale_img.show()
-
-    #nms
-    boxes_nms = np.array(total_boxes)
-    true_boxes1 = nms_max(boxes_nms, overlapThresh=0.3)
-    true_boxes = nms_average(np.array(true_boxes1), overlapThresh=0.07)
-    #display the nmx bounding box in  image.
-    draw = ImageDraw.Draw(img)
-    print "width:", img.size[0], "height:",  img.size[1]
-    for box in true_boxes:
-        draw.rectangle((box[0], box[1], box[2], box[3]), outline=(255,0,0) )
-        font_path=os.environ.get("FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf")
-	ttFont = ImageFont.truetype(font_path, 20)
- 	draw.text((box[0], box[1]), "{0:.2f}".format(box[4]), font=ttFont)
-    img.save("result/" + str(img_count) + ".jpg")
-    img_count+=1
-    #img.show()
+	    # make classification map by forward and print prediction indices at each location
+	    out = net_full_conv.forward_all(data=np.asarray([transformer.preprocess('data', im)]))
+	    #print out['prob'][0].argmax(axis=0)
+	    boxes = generateBoundingBox(out['prob'][0,1], scale)
+	    #plt.subplot(1, 2, 1)
+	    #plt.imshow(transformer.deprocess('data', net_full_conv.blobs['data'].data[0]))
+	    #plt.subplot(1, 2, 2)
+	    #plt.imshow(out['prob'][0,1])
+	    #plt.show()
+	    #print boxes
+	    if(boxes):
+		total_boxes.extend(boxes)
+    
+		# boxes_nms = np.array(total_boxes)
+		# true_boxes = nms(boxes_nms, overlapThresh=0.3)
+		# #display the nmx bounding box in  image.
+		# draw = ImageDraw.Draw(scale_img)
+		# for box in true_boxes:
+		#     draw.rectangle((box[0], box[1], box[2], box[3]) )
+		# scale_img.show()
+    
+	#nms
+	boxes_nms = np.array(total_boxes)
+	true_boxes1 = nms_max(boxes_nms, overlapThresh=0.3)
+	true_boxes = nms_average(np.array(true_boxes1), overlapThresh=0.07)
+	#display the nmx bounding box in  image.
+	draw = ImageDraw.Draw(img)
+	print ("width:", img.size[0], "height:",  img.size[1])
+	for box in true_boxes:
+	    draw.rectangle((box[0], box[1], box[2], box[3]), outline=(255,0,0) )
+	    font_path=os.environ.get("FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf")
+	    ttFont = ImageFont.truetype(font_path, 20)
+	    draw.text((box[0], box[1]), "{0:.2f}".format(box[4]), font=ttFont)
+	img.save("result/" + str(img_count) + ".jpg")
+	img_count+=1
+	#img.show()
 
 if __name__ == "__main__":
     #convert_full_conv()
